@@ -8,7 +8,8 @@ train_XGBoost = function(dt,
                          subsample=0.5, # subsample ratio of the training instance
                          colsample_bytree=1, # colsample_bytree
                          objective = "count:poisson",
-                         eval_metric = "poisson-nloglik"
+                         eval_metric = "poisson-nloglik",
+                         tweedie_variance_power = 1.8
                          
 ){
   
@@ -22,7 +23,7 @@ train_XGBoost = function(dt,
     min_child_weight=min_child_weight,
     subsample=subsample,
     colsample_bytree=colsample_bytree,
-    #tweedie_variance_power=1.8,
+    tweedie_variance_power=tweedie_variance_power,
     
     #Fixed
     objective = objective,
