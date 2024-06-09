@@ -1,4 +1,3 @@
-setwd("C:/Users/david/Desktop/Projects/1. ADSWP/2. Tree Based Models")
 
 source("init.R")
 source("models/XGBoost.R")
