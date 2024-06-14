@@ -10,7 +10,8 @@ models = list()
 results = list()
 losses = data.frame(CV = paste0("CV_",1:CV),
                     glm = NA,
-                    XGB = NA)
+                    XGB = NA,
+                    GLM_XGB = NA)
 
 # fitted = readRDS("The_Actuary_final_results_wo_models_v5.rds")
 # 
@@ -26,7 +27,8 @@ for (i in 1:CV){
   results[[paste0("CV_",i)]] = data.frame(ID = dt_list$fre_mtpl2_freq$IDpol[-train_rows],
                                           actual = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows],
                                           glm = NA,
-                                          XGB = NA) %>% 
+                                          XGB = NA, 
+                                          GLM_XGB = NA) %>% 
     mutate(homog = mean(dt_list$fre_mtpl2_freq$ClaimNb[train_rows]))
   
   encoder = preproc(dt_frame = dt_list$fre_mtpl2_freq[train_rows,],
@@ -71,7 +73,27 @@ for (i in 1:CV){
   losses$XGB[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
                                    y_pred = results[[paste0("CV_",i)]]$XGB)
   
-
+  # GLM + XGBoost  -------------------------------------------
+  
+  #vdt predictions
+  Residuals_glm = residuals(models[[paste0("CV_",i)]]$glm_model, type="response")
+  
+  
+  models[[paste0("CV_",i)]]$GLM_XGB_model = train_XGBoost(dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
+                                                      y = Residuals_glm,
+                                                      vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
+                                                                 y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows]),
+                                                      objective = "reg:squarederror",
+                                                      eta = 0.005
+                                                      
+  )
+  
+  results[[paste0("CV_",i)]]$GLM_XGB = predict(models[[paste0("CV_",i)]]$GLM_XGB_model,
+                                           xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)]))) +
+                                        results[[paste0("CV_",i)]]$glm
+  
+  losses$GLM_XGB[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
+                                   y_pred = results[[paste0("CV_",i)]]$GLM_XGB)
 
 
 }
@@ -85,8 +107,8 @@ for (i in 1:CV){
 #              results = results),file = "The_Actuary_final_results_wo_models_v6.rds")
 
 analysis = bind_rows(results,.id = "id")  %>% 
-  select(id,actual,glm,XGB, homog) %>% 
-  pivot_longer(cols = glm:homog) %>% 
+  select(id,actual,glm,XGB, homog, GLM_XGB) %>% 
+  pivot_longer(cols = glm:GLM_XGB) %>% 
   mutate(actual = actual,
          value = value,
          poiss = Vectorize(poisson_deviance)(y_true = actual,
@@ -112,7 +134,7 @@ analysis %>%
   rename(model=name) %>% 
   ggplot(aes(x = poiss,fill=model,color=model,linetype=model))+
   geom_density(alpha=0.3,size=1)+
-  ggplot2::scale_fill_manual(values = c("blue","yellow","green","grey"))+
+  ggplot2::scale_fill_manual(values = c("blue","yellow","green"))+
   xlim(0,0.75)+
   # facet_wrap(~name)+
   ggdark::dark_theme_classic()+
@@ -124,7 +146,8 @@ analysis %>%
 multiple_lift(y_true = bind_rows(results,.id = "id") %>% pull(actual),
                y_pred_df = bind_rows(results,.id = "id") %>% select(glm,
                                                                     XGB,
-                                                                    homog))+
+                                                                    homog,
+                                                                    GLM_XGB))+
   ggtitle("Combined lift chart")+
   xlab("Tiles")+
   ylab("Implied frequency")+
