@@ -1,6 +1,6 @@
 
 source("init.R")
-source("models/XGBoost.R")
+source("Models/XGBoost.R")
 
 CV = 5
 
