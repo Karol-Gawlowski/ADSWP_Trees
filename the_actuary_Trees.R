@@ -84,7 +84,9 @@ for (i in 1:CV){
                                                       vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
                                                                  y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows]),
                                                       objective = "reg:squarederror",
-                                                      eta = 0.005
+                                                      eval_metric = "rmse",
+                                                      eta = 0.005,
+                                                      max_depth = 5
                                                       
   )
   
