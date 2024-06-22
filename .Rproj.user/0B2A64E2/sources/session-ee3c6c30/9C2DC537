@@ -1,0 +1,26 @@
+{
+    "id": "9C2DC537",
+    "path": "~/R_projects/ADSWP_Trees/Models/train_GLM_w_XGB.R",
+    "project_path": "Models/train_GLM_w_XGB.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1719059719704.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "0,0",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1719061481,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1719061481371,
+    "read_only": false,
+    "read_only_alternatives": []
+}

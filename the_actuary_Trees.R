@@ -1,6 +1,6 @@
-
 source("init.R")
 source("Models/XGBoost.R")
+source("Models/train_GLM_w_XGB.R")
 
 CV = 5
 
@@ -27,7 +27,8 @@ for (i in 1:CV){
   results[[paste0("CV_",i)]] = data.frame(ID = dt_list$fre_mtpl2_freq$IDpol[-train_rows],
                                           actual = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows],
                                           glm = NA,
-                                          XGB = NA, 
+                                          XGB = NA,
+                                          train_GLM_w_XGB = NA,
                                           GLM_XGB = NA) %>% 
     mutate(homog = mean(dt_list$fre_mtpl2_freq$ClaimNb[train_rows]))
   
@@ -44,8 +45,8 @@ for (i in 1:CV){
   
   # homogenous model ------------------------------------------------- 
   
-  losses$homog[i] =poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
-                                    y_pred = results[[paste0("CV_",i)]]$homog)
+  losses$homog[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
+                                     y_pred = results[[paste0("CV_",i)]]$homog)
   
   # glm ------------------------------------------------- 
   
@@ -56,8 +57,8 @@ for (i in 1:CV){
   results[[paste0("CV_",i)]]$glm = as.vector(predict(models[[paste0("CV_",i)]]$glm_model,
                                                      dt_list$fre_mtpl2_freq[-train_rows,-c(1,3)],type="response"))
   
-  losses$glm[i] =poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
-                                  y_pred = results[[paste0("CV_",i)]]$glm)
+  losses$glm[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
+                                   y_pred = results[[paste0("CV_",i)]]$glm)
   
   # XGBoost  -------------------------------------------
   
@@ -73,6 +74,20 @@ for (i in 1:CV){
   losses$XGB[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
                                    y_pred = results[[paste0("CV_",i)]]$XGB)
   
+  
+  # GLM with XGB pred as covariate  -------------------------------------------
+  
+  models[[paste0("CV_",i)]]$train_GLM_w_XGB = train_GLM_w_XGB(xgb_model = models[[paste0("CV_",i)]]$XGB_model,
+                                                              dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
+                                                              y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows])
+  
+  results[[paste0("CV_",i)]]$train_GLM_w_XGB = predict(models[[paste0("CV_",i)]]$train_GLM_w_XGB,
+                                                       dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)])
+  
+  losses$train_GLM_w_XGB[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
+                                               y_pred = results[[paste0("CV_",i)]]$train_GLM_w_XGB)
+  
+  
   # GLM + XGBoost  -------------------------------------------
   
   #vdt predictions
@@ -80,36 +95,36 @@ for (i in 1:CV){
   
   
   models[[paste0("CV_",i)]]$GLM_XGB_model = train_XGBoost(dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
-                                                      y = Residuals_glm,
-                                                      vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
-                                                                 y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows]),
-                                                      objective = "reg:squarederror",
-                                                      eval_metric = "rmse",
-                                                      eta = 0.005,
-                                                      max_depth = 5
-                                                      
+                                                          y = Residuals_glm,
+                                                          vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
+                                                                     y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows]),
+                                                          objective = "reg:squarederror",
+                                                          eval_metric = "rmse",
+                                                          eta = 0.005,
+                                                          max_depth = 5
+                                                          
   )
   
   results[[paste0("CV_",i)]]$GLM_XGB = predict(models[[paste0("CV_",i)]]$GLM_XGB_model,
-                                           xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)]))) +
-                                        results[[paste0("CV_",i)]]$glm
+                                               xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)]))) +
+    results[[paste0("CV_",i)]]$glm
   
   losses$GLM_XGB[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
-                                   y_pred = results[[paste0("CV_",i)]]$GLM_XGB)
-
-
+                                       y_pred = results[[paste0("CV_",i)]]$GLM_XGB)
+  
+  
 }
 
 # save files
 # saveRDS(list(losses = losses,
 #              results = results,
-#              models = models),file = "The_Actuary_final_results_v6.rds")
-# 
-# saveRDS(list(losses = losses,
-#              results = results),file = "The_Actuary_final_results_wo_models_v6.rds")
+#              models = models),file = "The_Actuary_trees_v1.rds")
+
+saveRDS(list(losses = losses,
+             results = results),file = "The_Actuary_trees_wo_models_v1.rds")
 
 analysis = bind_rows(results,.id = "id")  %>% 
-  select(id,actual,glm,XGB, homog, GLM_XGB) %>% 
+  select(id,actual,glm,XGB, homog, train_GLM_w_XGB, GLM_XGB) %>% 
   pivot_longer(cols = glm:GLM_XGB) %>% 
   mutate(actual = actual,
          value = value,
@@ -136,20 +151,20 @@ analysis %>%
   rename(model=name) %>% 
   ggplot(aes(x = poiss,fill=model,color=model,linetype=model))+
   geom_density(alpha=0.3,size=1)+
-  ggplot2::scale_fill_manual(values = c("blue","yellow","green"))+
+  ggplot2::scale_fill_manual(values = c("blue","yellow","green","red"))+
   xlim(0,0.75)+
   # facet_wrap(~name)+
   ggdark::dark_theme_classic()+
-  theme(panel.grid.minor = element_line(colour="darkgrey", size=0.01,linetype = 3))+
+  # theme(panel.grid.minor = element_line(colour="darkgrey", size=0.01,linetype = 3))+
   ggtitle("Poisson deviance per observation, per model")+
   xlab("Poisson deviance")
 
 # lift chart
 multiple_lift(y_true = bind_rows(results,.id = "id") %>% pull(actual),
-               y_pred_df = bind_rows(results,.id = "id") %>% select(glm,
-                                                                    XGB,
-                                                                    homog,
-                                                                    GLM_XGB))+
+              y_pred_df = bind_rows(results,.id = "id") %>% select(glm,
+                                                                   XGB,
+                                                                   homog,
+                                                                   GLM_XGB))+
   ggtitle("Combined lift chart")+
   xlab("Tiles")+
   ylab("Implied frequency")+
