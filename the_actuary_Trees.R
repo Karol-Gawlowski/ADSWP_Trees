@@ -93,21 +93,24 @@ for (i in 1:CV){
   #vdt predictions
   Residuals_glm = residuals(models[[paste0("CV_",i)]]$glm_model, type="response")
   
+  Residuals_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows]-
+    as.vector(predict(models[[paste0("CV_",i)]]$glm_model, dt_list$fre_mtpl2_freq[-train_rows,-c(1,3)],type="response"))
   
   models[[paste0("CV_",i)]]$GLM_XGB_model = train_XGBoost(dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
                                                           y = Residuals_glm,
                                                           vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
-                                                                     y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows]),
+                                                                     y_val = Residuals_val),
                                                           objective = "reg:squarederror",
                                                           eval_metric = "rmse",
                                                           eta = 0.005,
-                                                          max_depth = 5
+                                                          max_depth = 5,
+                                                          tweedie_variance_power = 0
                                                           
   )
   
-  results[[paste0("CV_",i)]]$GLM_XGB = predict(models[[paste0("CV_",i)]]$GLM_XGB_model,
+  results[[paste0("CV_",i)]]$GLM_XGB = pmax(0,predict(models[[paste0("CV_",i)]]$GLM_XGB_model,
                                                xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)]))) +
-    results[[paste0("CV_",i)]]$glm
+    results[[paste0("CV_",i)]]$glm)
   
   losses$GLM_XGB[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
                                        y_pred = results[[paste0("CV_",i)]]$GLM_XGB)
