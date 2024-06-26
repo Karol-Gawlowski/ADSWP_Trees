@@ -23,3 +23,4 @@ predict.train_GLM_w_XGB = function(model,dt){
   return(predict(model$glm_model,cbind(dt,xgb_preds),type="response"))
   
 }
+
