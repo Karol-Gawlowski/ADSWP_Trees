@@ -124,7 +124,7 @@ for (i in 1:CV){
 #              models = models),file = "The_Actuary_trees_v1.rds")
 
 saveRDS(list(losses = losses,
-             results = results),file = "The_Actuary_trees_wo_models_v2.rds")
+             results = results),file = "Results/The_Actuary_trees_wo_models_v2.rds")
 
 analysis = bind_rows(results,.id = "id")  %>% 
   select(id,actual,glm,XGB, homog, train_GLM_w_XGB, GLM_XGB) %>% 
