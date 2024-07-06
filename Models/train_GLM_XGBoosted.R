@@ -3,7 +3,6 @@ train_GLM_XGBoosted = function(glm_model,
                            y,
                            vdt){
   
-  print("aq")
   
   glm_preds = predict(glm_model,(dt))
   
