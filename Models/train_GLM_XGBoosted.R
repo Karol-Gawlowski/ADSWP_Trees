@@ -38,7 +38,7 @@ predict.train_GLM_XGBoosted = function(model,dt){
   
   
   xgb_preds = predict(model$Residual_ModelGLM_XGB_model,xgb.DMatrix(data.matrix(dt)), type="response")
-  glm_preds = predict(model$Base_Model$glm_model,dt, type="response")
+  glm_preds = predict(model$Base_Model$glm_model,dt)
 
    results = pmax(0,xgb_preds + glm_preds)
    
