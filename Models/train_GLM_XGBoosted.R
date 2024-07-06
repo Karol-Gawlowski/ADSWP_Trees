@@ -3,6 +3,7 @@ train_GLM_XGBoosted = function(glm_model,
                            y,
                            vdt){
   
+
   
   glm_preds = predict(glm_model,(dt))
   
@@ -36,12 +37,11 @@ train_GLM_XGBoosted = function(glm_model,
 predict.train_GLM_XGBoosted = function(model,dt){
   
   
-  xgb_preds = predict(model$Residual_ModelGLM_XGB_model,xgb.DMatrix(data.matrix(dt)), type="response")
-  glm_preds = predict(model$Base_Model$glm_model,dt)
+  xgb_preds = predict(Model$Residual_Model$GLM_XGB_model,xgb.DMatrix(data.matrix(dt)), type="response")
+  glm_preds = predict(Model$Base_Modeldt)
 
    results = pmax(0,xgb_preds + glm_preds)
    
    return(xgb_preds)
   
 }
-
