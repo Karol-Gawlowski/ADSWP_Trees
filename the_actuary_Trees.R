@@ -1,6 +1,9 @@
 source("init.R")
 source("Models/XGBoost.R")
 source("Models/train_GLM_w_XGB.R")
+source("Models/train_multipl_GLM_XGB.R")
+source("Models/train_GLM_XGBoosted.R")
+source("Models/SAV_GLM.R")
 
 CV = 5
 
@@ -13,6 +16,7 @@ results = list()
 losses = data.frame(CV = paste0("CV_",1:CV),
                     homog = NA,
                     glm = NA,
+                    SAV_glm = NA,
                     XGB = NA,
                     train_GLM_w_XGB = NA,
                     GLM_XGB = NA,
@@ -27,115 +31,128 @@ for (i in 1:CV){
   
   train_rows = which(CV_vec != i)
   
-  models[[paste0("CV_",i)]] = list()
+  iter = paste0("CV_",i)
   
-  results[[paste0("CV_",i)]] = data.frame(ID = dt_list$fre_mtpl2_freq$IDpol[-train_rows],
-                                          actual = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows],
-                                          glm = NA,
-                                          XGB = NA,
-                                          train_GLM_w_XGB = NA,
-                                          GLM_XGB = NA,
-                                          multipl_GLM_XGB = NA) %>% 
+  models[[iter]] = list()
+  
+  results[[iter]] = data.frame(ID = dt_list$fre_mtpl2_freq$IDpol[-train_rows],
+                               actual = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows],
+                               glm = NA,
+                               SAV_glm = NA,
+                               XGB = NA,
+                               train_GLM_w_XGB = NA,
+                               GLM_XGB = NA,
+                               multipl_GLM_XGB = NA) %>% 
     mutate(homog = mean(dt_list$fre_mtpl2_freq$ClaimNb[train_rows]))
   
-  encoder = preproc(dt_frame = dt_list$fre_mtpl2_freq[train_rows,],
-                    y = "ClaimNb",
-                    num = "norm",
-                    cat = "ohe",
-                    bypass = NULL,
-                    exclude = c("IDpol","Exposure"),
-                    verbose = T)
-  
-  train = encoder(dt_list$fre_mtpl2_freq[train_rows,])
-  test = encoder(dt_list$fre_mtpl2_freq[-train_rows,])
+  # encoder = preproc(dt_frame = dt_list$fre_mtpl2_freq[train_rows,],
+  #                   y = "ClaimNb",
+  #                   num = "norm",
+  #                   cat = "ohe",
+  #                   bypass = NULL,
+  #                   exclude = c("IDpol","Exposure"),
+  #                   verbose = T)
+  # 
+  # train = encoder(dt_list$fre_mtpl2_freq[train_rows,])
+  # test = encoder(dt_list$fre_mtpl2_freq[-train_rows,])
   
   # homogenous model ------------------------------------------------- 
   
-  losses$homog[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
-                                     y_pred = results[[paste0("CV_",i)]]$homog)
+  losses$homog[i] = poisson_deviance(y_true = results[[iter]]$actual,
+                                     y_pred = results[[iter]]$homog)
   
   # glm ------------------------------------------------- 
   
-  models[[paste0("CV_",i)]]$glm_model = glm(formula = ClaimNb~.,
-                                            family = poisson,
-                                            data = dt_list$fre_mtpl2_freq[train_rows,-c(1,3)])
+  models[[iter]]$glm_model = glm(formula = ClaimNb~.,
+                                 family = poisson,
+                                 data = dt_list$fre_mtpl2_freq[train_rows,-c(1,3)])
   
-  results[[paste0("CV_",i)]]$glm = as.vector(predict(models[[paste0("CV_",i)]]$glm_model,
-                                                     dt_list$fre_mtpl2_freq[-train_rows,-c(1,3)],type="response"))
+  results[[iter]]$glm = as.vector(predict(models[[iter]]$glm_model,
+                                          dt_list$fre_mtpl2_freq[-train_rows,-c(1,3)],type="response"))
   
-  losses$glm[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
-                                   y_pred = results[[paste0("CV_",i)]]$glm)
+  losses$glm[i] = poisson_deviance(y_true = results[[iter]]$actual,
+                                   y_pred = results[[iter]]$glm)
+  
+  
+  # SAV glm ------------------------------------------------- 
+  
+  models[[iter]]$SAV_glm_model = SAV_glm(data = dt_list$fre_mtpl2_freq[train_rows,-c(1,3)])
+  
+  results[[iter]]$SAV_glm = predict(models[[iter]]$SAV_glm_model,dt_list$fre_mtpl2_freq[-train_rows,-c(1,3)])
+  
+  losses$SAV_glm[i] = poisson_deviance(y_true = results[[iter]]$actual,
+                                       y_pred = results[[iter]]$SAV_glm)
   
   # XGBoost  -------------------------------------------
   
-  models[[paste0("CV_",i)]]$XGB_model = train_XGBoost(dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
-                                                      y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows],
-                                                      vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
-                                                                 y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows])
+  models[[iter]]$XGB_model = train_XGBoost(dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
+                                           y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows],
+                                           vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
+                                                      y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows])
   )
   
-  results[[paste0("CV_",i)]]$XGB = predict(models[[paste0("CV_",i)]]$XGB_model,
-                                           xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)])))
+  results[[iter]]$XGB = predict(models[[iter]]$XGB_model,
+                                xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)])))
   
-  losses$XGB[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
-                                   y_pred = results[[paste0("CV_",i)]]$XGB)
+  losses$XGB[i] = poisson_deviance(y_true = results[[iter]]$actual,
+                                   y_pred = results[[iter]]$XGB)
   
   
   # GLM with XGB pred as covariate  -------------------------------------------
   
-  models[[paste0("CV_",i)]]$train_GLM_w_XGB = train_GLM_w_XGB(xgb_model = models[[paste0("CV_",i)]]$XGB_model,
-                                                              dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
-                                                              y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows])
+  models[[iter]]$train_GLM_w_XGB = train_GLM_w_XGB(xgb_model = models[[iter]]$XGB_model,
+                                                   dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
+                                                   y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows])
   
-  results[[paste0("CV_",i)]]$train_GLM_w_XGB = predict(models[[paste0("CV_",i)]]$train_GLM_w_XGB,
-                                                       dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)])
+  results[[iter]]$train_GLM_w_XGB = predict(models[[iter]]$train_GLM_w_XGB,
+                                            dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)])
   
-  losses$train_GLM_w_XGB[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
-                                               y_pred = results[[paste0("CV_",i)]]$train_GLM_w_XGB)
+  losses$train_GLM_w_XGB[i] = poisson_deviance(y_true = results[[iter]]$actual,
+                                               y_pred = results[[iter]]$train_GLM_w_XGB)
   
   
   # GLM + XGBoost  -------------------------------------------
   
   #vdt predictions
-  Residuals_glm = residuals(models[[paste0("CV_",i)]]$glm_model, type="response")
+  Residuals_glm = residuals(models[[iter]]$glm_model, type="response")
   
   Residuals_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows]-
-    as.vector(predict(models[[paste0("CV_",i)]]$glm_model, dt_list$fre_mtpl2_freq[-train_rows,-c(1,3)],type="response"))
+    as.vector(predict(models[[iter]]$glm_model, dt_list$fre_mtpl2_freq[-train_rows,-c(1,3)],type="response"))
   
-  models[[paste0("CV_",i)]]$GLM_XGB_model = train_XGBoost(dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
-                                                          y = Residuals_glm,
-                                                          vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
-                                                                     y_val = Residuals_val),
-                                                          objective = "reg:squarederror",
-                                                          eval_metric = "rmse",
-                                                          eta = 0.005,
-                                                          max_depth = 5,
-                                                          tweedie_variance_power = 0
-                                                          
+  models[[iter]]$GLM_XGB_model = train_XGBoost(dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
+                                               y = Residuals_glm,
+                                               vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
+                                                          y_val = Residuals_val),
+                                               objective = "reg:squarederror",
+                                               eval_metric = "rmse",
+                                               eta = 0.005,
+                                               max_depth = 5,
+                                               tweedie_variance_power = 0
+                                               
   )
   
-  results[[paste0("CV_",i)]]$GLM_XGB = pmax(0,predict(models[[paste0("CV_",i)]]$GLM_XGB_model,
-                                                      xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)]))) +
-                                              results[[paste0("CV_",i)]]$glm)
+  results[[iter]]$GLM_XGB = pmax(0,predict(models[[iter]]$GLM_XGB_model,
+                                           xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)]))) +
+                                   results[[iter]]$glm)
   
-  losses$GLM_XGB[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
-                                       y_pred = results[[paste0("CV_",i)]]$GLM_XGB)
+  losses$GLM_XGB[i] = poisson_deviance(y_true = results[[iter]]$actual,
+                                       y_pred = results[[iter]]$GLM_XGB)
   
   
   # GLM * XGBoost  -------------------------------------------
   
-  models[[paste0("CV_",i)]]$multipl_GLM_XGB = train_multipl_GLM_XGB(glm_model = models[[paste0("CV_",i)]]$glm_model,
-                                                                    dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
-                                                                    y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows],
-                                                                    vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
-                                                                               y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows])
+  models[[iter]]$multipl_GLM_XGB = train_multipl_GLM_XGB(glm_model = models[[iter]]$glm_model,
+                                                         dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
+                                                         y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows],
+                                                         vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
+                                                                    y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows])
   )
   
-  results[[paste0("CV_",i)]]$multipl_GLM_XGB = predict(models[[paste0("CV_",i)]]$multipl_GLM_XGB,
-                                                       dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)])
+  results[[iter]]$multipl_GLM_XGB = predict(models[[iter]]$multipl_GLM_XGB,
+                                            dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)])
   
-  losses$multipl_GLM_XGB[i] = poisson_deviance(y_true = results[[paste0("CV_",i)]]$actual,
-                                               y_pred = results[[paste0("CV_",i)]]$multipl_GLM_XGB)
+  losses$multipl_GLM_XGB[i] = poisson_deviance(y_true = results[[iter]]$actual,
+                                               y_pred = results[[iter]]$multipl_GLM_XGB)
   
 }
 
@@ -143,10 +160,10 @@ for (i in 1:CV){
 # save files
 # saveRDS(list(losses = losses,
 #              results = results,
-#              models = models),file = "The_Actuary_trees_v1.rds")
+#              models = models),file = "The_Actuary_trees_v6.rds")
 
 saveRDS(list(losses = losses,
-             results = results),file = "Results/The_Actuary_trees_wo_models_v5.rds")
+             results = results),file = "Results/The_Actuary_trees_wo_models_v6.rds")
 
 # check calibration
 bind_rows(results,.id = "id") %>% 
@@ -186,7 +203,7 @@ poiss_per_CV %>%
   mutate_if(is.numeric,~ if_else(. == homog, .,1 -  ./homog)) %>% 
   select(-homog) %>% 
   mutate_if(is.numeric,scales::percent,0.1)
-  
+
 
 losses %>% 
   mutate_if(is.numeric,.funs = function(x)(x*c(data.frame(k=CV_vec) %>% 

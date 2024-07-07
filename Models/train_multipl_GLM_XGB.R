@@ -12,10 +12,10 @@ train_multipl_GLM_XGB = function(glm_model,
                                        y_val = vdt$y_val/glm_preds_out),
                             
                             objective = "count:poisson",
-                            eval_metric = "poisson-nloglik",
-                            eta = 0.005,
-                            max_depth = 5,
-                            tweedie_variance_power = NULL
+                            eval_metric = "poisson-nloglik" #,
+                            # eta = 0.005,
+                            # max_depth = 5,
+                            # tweedie_variance_power = NULL
   )
   
   toreturn = list(glm_model = glm_model,xgb_model = xgb_model)
