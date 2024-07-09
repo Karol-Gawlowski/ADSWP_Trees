@@ -27,6 +27,15 @@ poiss_loss = function(y_true,y_pred){
   y_true*log(y_true/y_pred)-(y_true-y_pred)
 }
 
+info_helper = function(n,t="misc/sink.txt"){
+  
+  sink(NULL)
+  cat(paste0(n,"\n"))
+  sink(t)
+  
+}
+
+
 #Encoding Function
 preproc = function(
     dt_frame,       # a dataframe

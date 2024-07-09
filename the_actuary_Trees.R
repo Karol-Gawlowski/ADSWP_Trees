@@ -56,12 +56,18 @@ for (i in 1:CV){
   # train = encoder(dt_list$fre_mtpl2_freq[train_rows,])
   # test = encoder(dt_list$fre_mtpl2_freq[-train_rows,])
   
+  
+  
   # homogenous model ------------------------------------------------- 
+  
+  info_helper(n=paste0(iter," homog"))
   
   losses$homog[i] = poisson_deviance(y_true = results[[iter]]$actual,
                                      y_pred = results[[iter]]$homog)
   
   # glm ------------------------------------------------- 
+  
+  info_helper(n=paste0(iter," glm"))
   
   models[[iter]]$glm_model = glm(formula = ClaimNb~.,
                                  family = poisson,
@@ -76,6 +82,8 @@ for (i in 1:CV){
   
   # SAV glm ------------------------------------------------- 
   
+  info_helper(n=paste0(iter," SAV glm"))
+  
   models[[iter]]$SAV_glm_model = SAV_glm(data = dt_list$fre_mtpl2_freq[train_rows,-c(1,3)])
   
   results[[iter]]$SAV_glm = predict(models[[iter]]$SAV_glm_model,dt_list$fre_mtpl2_freq[-train_rows,-c(1,3)])
@@ -84,6 +92,8 @@ for (i in 1:CV){
                                        y_pred = results[[iter]]$SAV_glm)
   
   # XGBoost  -------------------------------------------
+  
+  info_helper(n=paste0(iter," base XGB"))
   
   models[[iter]]$XGB_model = train_XGBoost(dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
                                            y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows],
@@ -100,6 +110,8 @@ for (i in 1:CV){
   
   # GLM with XGB pred as covariate  -------------------------------------------
   
+  info_helper(n=paste0(iter," glm with XGB covariate"))
+  
   models[[iter]]$train_GLM_w_XGB = train_GLM_w_XGB(xgb_model = models[[iter]]$XGB_model,
                                                    dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
                                                    y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows])
@@ -113,33 +125,25 @@ for (i in 1:CV){
   
   # GLM + XGBoost  -------------------------------------------
   
-  #vdt predictions
-  Residuals_glm = residuals(models[[iter]]$glm_model, type="response")
+  info_helper(n=paste0(iter," Boosted GLM"))
   
-  Residuals_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows]-
-    as.vector(predict(models[[iter]]$glm_model, dt_list$fre_mtpl2_freq[-train_rows,-c(1,3)],type="response"))
+  models[[iter]]$GLM_XGB_model = train_GLM_XGBoosted(glm_model = models[[iter]]$glm_model,
+                                                     dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
+                                                     y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows],
+                                                     vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
+                                                                y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows]))
   
-  models[[iter]]$GLM_XGB_model = train_XGBoost(dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
-                                               y = Residuals_glm,
-                                               vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
-                                                          y_val = Residuals_val),
-                                               objective = "reg:squarederror",
-                                               eval_metric = "rmse",
-                                               eta = 0.005,
-                                               max_depth = 5,
-                                               tweedie_variance_power = 0
-                                               
-  )
+    results[[iter]]$GLM_XGB = predict(models[[iter]]$GLM_XGB_model,
+                                    dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)])
   
-  results[[iter]]$GLM_XGB = pmax(0,predict(models[[iter]]$GLM_XGB_model,
-                                           xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)]))) +
-                                   results[[iter]]$glm)
   
   losses$GLM_XGB[i] = poisson_deviance(y_true = results[[iter]]$actual,
                                        y_pred = results[[iter]]$GLM_XGB)
-  
+
   
   # GLM * XGBoost  -------------------------------------------
+  
+  info_helper(n=paste0(iter," glm with XGB multipl"))
   
   models[[iter]]$multipl_GLM_XGB = train_multipl_GLM_XGB(glm_model = models[[iter]]$glm_model,
                                                          dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
@@ -156,14 +160,19 @@ for (i in 1:CV){
   
 }
 
+sink(NULL)
 
 # save files
 # saveRDS(list(losses = losses,
 #              results = results,
 #              models = models),file = "The_Actuary_trees_v6.rds")
 
+# temp = readRDS("Results/The_Actuary_trees_wo_models_v8.rds")
+# losses = temp$losses
+# results = temp$results
+
 saveRDS(list(losses = losses,
-             results = results),file = "Results/The_Actuary_trees_wo_models_v6.rds")
+             results = results),file = "Results/The_Actuary_trees_wo_models_v8.rds")
 
 # check calibration
 bind_rows(results,.id = "id") %>% 
@@ -224,6 +233,21 @@ analysis %>%
   ggtitle("Poisson deviance per observation, per model")+
   xlab("Poisson deviance")
 
+analysis %>%
+  filter(name!="homog") %>%
+  # filter(name %in% c("train_GLM_w_XGB","multipl_GLM_XGB")) %>% 
+  rename(model=name) %>% 
+  ggplot(aes(x = poiss))+
+  facet_wrap(~model,ncol = 1)+
+  geom_density(alpha=0.3,size=0.5)+
+  ggplot2::scale_fill_manual(values = c("blue","yellow","green","red","white"))+
+  xlim(0,0.75)+
+  # facet_wrap(~name)+
+  ggdark::dark_theme_classic()+
+  # theme(panel.grid.minor = element_line(colour="darkgrey", size=0.01,linetype = 3))+
+  ggtitle("Poisson deviance per observation, per model")+
+  xlab("Poisson deviance")
+
 # lift chart
 multiple_lift(y_true = bind_rows(results,.id = "id") %>% pull(actual),
               y_pred_df = bind_rows(results,.id = "id") %>% select(glm,
@@ -239,4 +263,10 @@ multiple_lift(y_true = bind_rows(results,.id = "id") %>% pull(actual),
 merge(coefficients(models$CV_1$train_GLM_w_XGB$glm_model) %>% data.frame() %>% set_names("glm(xgb)") %>% rownames_to_column() ,
       coefficients(models$CV_1$glm_model) %>% data.frame()  %>% set_names("glm") %>% rownames_to_column(),
       by = "rowname",all.x=T) %>% mutate(diff_perc = scales::percent(`glm(xgb)`/glm - 1,0.1)) %>% mutate_at(vars(contains("glm")),scales::number,0.01)
+
+
+
+analysis %>% 
+  slice_sample(prop = 0.25) %>% 
+  ggplot(aes(x = actual,y=poiss))+geom_point()+facet_wrap(~name)
 

@@ -3,17 +3,13 @@ train_GLM_XGBoosted = function(glm_model,
                                y,
                                vdt){
   
-  glm_preds = predict(glm_model,(dt))
+  Residuals_train = y - as.vector(predict(glm_model, dt,type="response")) 
   
-  Residuals_train = residuals(glm_model, type="response")
-  
-  Residuals_val = vdt$y_val-
-    as.vector(predict(glm_model, vdt$x_val,type="response"))
-  
+  Residuals_val = vdt$y_val - as.vector(predict(glm_model, vdt$x_val,type="response"))
   
   GLM_XGB_model = train_XGBoost(dt,
                                 y = Residuals_train,
-                                vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
+                                vdt = list(x_val = vdt$x_val,
                                            y_val = Residuals_val),
                                 objective = "reg:squarederror",
                                 eval_metric = "rmse",
@@ -34,12 +30,11 @@ train_GLM_XGBoosted = function(glm_model,
 
 predict.train_GLM_XGBoosted = function(model,dt){
   
-  
-  xgb_preds = predict(Model$Residual_Model$GLM_XGB_model,xgb.DMatrix(data.matrix(dt)), type="response")
-  glm_preds = predict(Model$Base_Modeldt)
+  xgb_preds = predict(model$GLM_XGB_model,xgb.DMatrix(data.matrix(dt)), type="response")
+  glm_preds = predict(model$glm_model,dt, type="response")
   
   results = pmax(0,xgb_preds + glm_preds)
   
-  return(xgb_preds)
+  return(results)
   
 }
