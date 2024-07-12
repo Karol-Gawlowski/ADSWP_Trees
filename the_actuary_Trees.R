@@ -20,7 +20,8 @@ losses = data.frame(CV = paste0("CV_",1:CV),
                     XGB = NA,
                     train_GLM_w_XGB = NA,
                     GLM_XGB = NA,
-                    multipl_GLM_XGB = NA)
+                    multipl_GLM_XGB = NA,
+                    XGB_init_GLM =NA)
 
 # fitted = readRDS("The_Actuary_final_results_wo_models_v5.rds")
 # 
@@ -42,9 +43,10 @@ for (i in 1:CV){
                                XGB = NA,
                                train_GLM_w_XGB = NA,
                                GLM_XGB = NA,
-                               multipl_GLM_XGB = NA) %>% 
+                               multipl_GLM_XGB = NA,
+                               XGB_init_GLM =NA) %>% 
     mutate(homog = mean(dt_list$fre_mtpl2_freq$ClaimNb[train_rows]))
-  
+ 
   # encoder = preproc(dt_frame = dt_list$fre_mtpl2_freq[train_rows,],
   #                   y = "ClaimNb",
   #                   num = "norm",
@@ -61,7 +63,7 @@ for (i in 1:CV){
   # homogenous model ------------------------------------------------- 
   
   info_helper(n=paste0(iter," homog"))
-  
+ 
   losses$homog[i] = poisson_deviance(y_true = results[[iter]]$actual,
                                      y_pred = results[[iter]]$homog)
   
@@ -157,7 +159,23 @@ for (i in 1:CV){
   
   losses$multipl_GLM_XGB[i] = poisson_deviance(y_true = results[[iter]]$actual,
                                                y_pred = results[[iter]]$multipl_GLM_XGB)
+
+  # XGBoost intialised with GLM  -------------------------------------------
   
+  info_helper(n=paste0(iter," XGB init GLM"))
+  
+  models[[iter]]$XGB_init_GLM_model = train_XGBoost(dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
+                                           y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows],
+                                           vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
+                                                      y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows],
+                                            use_glm= TRUE          )
+  )
+  
+  results[[iter]]$XGB_init_GLM = predict(models[[iter]]$XGB_init_GLM_model,
+                                xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)])))
+  
+  losses$XGB_init_GLM[i] = poisson_deviance(y_true = results[[iter]]$actual,
+                                   y_pred = results[[iter]]$XGB_init_GLM)  
 }
 
 sink(NULL)
