@@ -9,7 +9,9 @@ train_XGBoost = function(dt,
                          colsample_bytree=1, # colsample_bytree
                          objective = "count:poisson",
                          eval_metric = "poisson-nloglik",
-                         tweedie_variance_power = 1.8
+                         tweedie_variance_power = 1.8,
+                         use_glm = FALSE
+                         
                          
 ){
   
@@ -36,6 +38,16 @@ train_XGBoost = function(dt,
   
   #train
   dtrain <- xgb.DMatrix(X_train, label = y_train)
+  
+  # Initialize with GLM predictions if use_glm is TRUE
+  if (use_glm) {
+    glm_model <- SAV_glm(dt)
+    glm_predictions <- predict.SAV_glm(glm_model, dt)
+    setinfo(dtrain, "base_margin", glm_predictions)
+  }
+
+  
+  
   
   # Fit final, tuned model
   fit <- xgb.train(
