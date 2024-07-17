@@ -171,8 +171,8 @@ sink(NULL)
 # losses = temp$losses
 # results = temp$results
 
-saveRDS(list(losses = losses,
-             results = results),file = "Results/The_Actuary_trees_wo_models_v8.rds")
+# saveRDS(list(losses = losses,
+#              results = results),file = "Results/The_Actuary_trees_wo_models_v8.rds")
 
 # check calibration
 bind_rows(results,.id = "id") %>% 
@@ -259,7 +259,8 @@ multiple_lift(y_true = bind_rows(results,.id = "id") %>% pull(actual),
   ylab("Implied frequency")+
   ggdark::dark_theme_classic()
 
-# remark on glm
+# remark on glm - if model objects are loaded, this will show differences in betas 
+# for base glm and glm with xgb as predictor. we can see how much the params differ 
 merge(coefficients(models$CV_1$train_GLM_w_XGB$glm_model) %>% data.frame() %>% set_names("glm(xgb)") %>% rownames_to_column() ,
       coefficients(models$CV_1$glm_model) %>% data.frame()  %>% set_names("glm") %>% rownames_to_column(),
       by = "rowname",all.x=T) %>% mutate(diff_perc = scales::percent(`glm(xgb)`/glm - 1,0.1)) %>% mutate_at(vars(contains("glm")),scales::number,0.01)
