@@ -10,7 +10,9 @@ train_XGBoost = function(dt,
                          objective = "count:poisson",
                          eval_metric = "poisson-nloglik",
                          tweedie_variance_power = 1.8,
-                         use_glm = FALSE
+                         use_glm = FALSE,
+                         glm_model = NULL
+                         
                          
                          
 ){
@@ -38,14 +40,16 @@ train_XGBoost = function(dt,
   
   #train
   dtrain <- xgb.DMatrix(X_train, label = y_train)
+  vtrain <- xgb.DMatrix(data.matrix(vdt$x_val), label = vdt$y_val)
   
   # Initialize with GLM predictions if use_glm is TRUE
-  if (use_glm) {
-    glm_model <- SAV_glm(dt)
-    glm_predictions <- predict.SAV_glm(glm_model, dt)
-    setinfo(dtrain, "base_margin", glm_predictions)
+  if (use_glm && !is.null(glm_model)) {
+    glm_predictions_train <- predict(glm_model, dt,type="link")
+    setinfo(dtrain, "base_margin", as.matrix(glm_predictions_train))
+    glm_predictions_val <- predict(glm_model, vdt,type="link")
+    setinfo(vtrain, "base_margin", as.matrix(glm_predictions_val))
   }
-
+  
   
   
   
@@ -55,7 +59,7 @@ train_XGBoost = function(dt,
     data = dtrain, 
     nrounds = 1000,
     verbose = 1,
-    watchlist = list(validation = xgb.DMatrix(data.matrix(vdt$x_val), label = vdt$y_val)),
+    watchlist = list(validation = vtrain),
     early_stopping_rounds = 10
     
   )
