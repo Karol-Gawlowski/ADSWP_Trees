@@ -46,7 +46,7 @@ train_XGBoost = function(dt,
   if (use_glm && !is.null(glm_model)) {
     glm_predictions_train <- predict(glm_model, dt,type="link")
     setinfo(dtrain, "base_margin", as.matrix(glm_predictions_train))
-    glm_predictions_val <- predict(glm_model, vdt,type="link")
+    glm_predictions_val <- predict(glm_model, vdt$x_val,type="link")
     setinfo(vtrain, "base_margin", as.matrix(glm_predictions_val))
   }
   
