@@ -11,28 +11,9 @@ train_XGBoost = function(dt,
                          eval_metric = "poisson-nloglik",
                          tweedie_variance_power = 1.8,
                          use_glm = FALSE,
-                         glm_model = NULL
-                         
-                         
-                         
+                         glm_model = NULL,
+                         default_params = T
 ){
-  
-  #parameters list
-  params <- list(
-    
-    #function inputs
-    eta=eta,
-    gamma=gamma,
-    max_depth=max_depth,
-    min_child_weight=min_child_weight,
-    subsample=subsample,
-    colsample_bytree=colsample_bytree,
-    tweedie_variance_power=tweedie_variance_power,
-    
-    #Fixed
-    objective = objective,
-    eval_metric = eval_metric
-  )
   
   #training set
   y_train <- y
@@ -50,6 +31,33 @@ train_XGBoost = function(dt,
     setinfo(vtrain, "base_margin", as.matrix(glm_predictions_val))
   }
   
+  if(default_params){
+    
+    params <- list(
+      #Fixed
+      objective = objective,
+      eval_metric = eval_metric)
+    
+  }else{
+    
+    #parameters list
+    params <- list(
+      
+      #function inputs
+      eta=eta,
+      gamma=gamma,
+      max_depth=max_depth,
+      min_child_weight=min_child_weight,
+      subsample=subsample,
+      colsample_bytree=colsample_bytree,
+      tweedie_variance_power=tweedie_variance_power,
+      
+      #Fixed
+      objective = objective,
+      eval_metric = eval_metric)
+    
+  }
+  
   # Fit final, tuned model
   fit <- xgb.train(
     params = params, 
@@ -60,6 +68,7 @@ train_XGBoost = function(dt,
     early_stopping_rounds = 10
     
   )
+  
   
   return(fit)
   

@@ -14,7 +14,8 @@ train_multipl_GLM_XGB = function(glm_model,
                             objective = "count:poisson",
                             eval_metric = "poisson-nloglik",
                             eta = 0.005,
-                            max_depth = 5
+                            max_depth = 5,
+                            default_params=T
                             # tweedie_variance_power = NULL
   )
   

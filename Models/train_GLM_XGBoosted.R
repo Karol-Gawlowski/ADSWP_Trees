@@ -15,8 +15,8 @@ train_GLM_XGBoosted = function(glm_model,
                                 eval_metric = "rmse",
                                 eta = 0.005,
                                 max_depth = 5,
-                                tweedie_variance_power = 0
-                                
+                                tweedie_variance_power = 0,
+                                default_params = T
   )
   
   

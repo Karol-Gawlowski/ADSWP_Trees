@@ -239,12 +239,12 @@ for (i in 1:CV){
   
   models[[iter]]$XGB_init_GLM_model = train_XGBoost(glm_model = models[[iter]]$glm_model, dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
                                                     y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows],
-                                                    vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
-                                                               y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows]), use_glm= TRUE
+                                                    vdt = list(x_val = dt_list$fre_mtpl2_freq[valid_rows,-c(1,2,3)],
+                                                               y_val = dt_list$fre_mtpl2_freq$ClaimNb[valid_rows])
   )
   
-  dval_with_margin = xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[valid_rows,-c(1,2,3)]))
-  val_base_margin = predict(models[[iter]]$glm_model, dt_list$fre_mtpl2_freq[valid_rows,-c(1,2,3)],type="link")
+  dval_with_margin = xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[test_rows,-c(1,2,3)]))
+  val_base_margin = predict(models[[iter]]$glm_model, dt_list$fre_mtpl2_freq[test_rows,-c(1,2,3)],type="link")
   setinfo(dval_with_margin, "base_margin", val_base_margin)
   
   results[[iter]]$XGB_init_GLM = predict(models[[iter]]$XGB_init_GLM_model,dval_with_margin)
@@ -254,9 +254,10 @@ for (i in 1:CV){
 
 }
 
+sink(NULL)
 
 saveRDS(list(losses = losses,
-             results = results),file = "Results/The_Actuary_trees_wo_models_v11_VALIDATION.rds")
+             results = results),file = "Results/The_Actuary_trees_wo_models_v12_VALIDATION.rds")
 
 analysis = bind_rows(results,.id = "id")  %>% 
   select(id,actual,homog,glm,SAV_glm,XGB,train_GLM_w_XGB,GLM_XGB,
@@ -267,4 +268,24 @@ analysis = bind_rows(results,.id = "id")  %>%
          poiss = Vectorize(poisson_deviance)(y_true = actual,
                                              y_pred = value)) 
 
+poiss_per_CV = rbind(losses,
+                     losses %>%
+                       pivot_longer(cols = !CV) %>%
+                       group_by(name) %>%
+                       summarise(mean_poiss = mean(value)) %>%
+                       arrange(mean_poiss) %>%
+                       pivot_wider(values_from = mean_poiss,names_from = name) %>%
+                       mutate(CV = "mean_poiss"))
+
+# pinball
+poiss_per_CV %>% 
+  mutate_if(is.numeric,~ if_else(. == homog, .,1 -  ./homog)) %>% 
+  select(-homog) %>% 
+  mutate_if(is.numeric,scales::percent,0.1)
+
+
+
 poiss_dens(an = analysis,m = c("glm","multipl_GLM_XGB","GLM_XGB"))
+
+poiss_dens(an = analysis,m = c("glm","multipl_GLM_XGB","multipl_SAV_GLM_XGB"))
+poiss_dens(an = analysis,m = c("glm","GLM_XGB","SAV_GLM_XGB_model"))

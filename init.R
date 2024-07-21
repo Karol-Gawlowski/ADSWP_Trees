@@ -342,3 +342,23 @@ multiple_lift = function(y_true,
     geom_line()
   
 }
+
+
+double_lift = function(an,
+                       actual,
+                       m1,
+                       m2,
+                       tiles=5){
+  
+  
+  data.frame(actual = an[[actual]],
+             model1 = an[[m1]],
+             model2 = an[[m2]]
+             ) %>% 
+    group_by(tiles = ntiles(m1/m2,tiles)) %>% 
+    summarise(act = )
+  
+  
+  
+}
+
