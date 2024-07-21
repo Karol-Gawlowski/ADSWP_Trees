@@ -36,6 +36,28 @@ info_helper = function(n,t="misc/sink.txt"){
 }
 
 
+poiss_dens = function(an = analysis,
+                      m = c("multipl_SAV_GLM_XGB","multipl_GLM_XGB")){
+
+  an %>%
+    # filter(name!="homog") %>%
+    filter(name %in% m) %>%
+    rename(model=name) %>% 
+    ggplot(aes(x = poiss,fill=model,color=model,linetype=model))+
+    geom_density(alpha=0.3,size=1)+
+    ggplot2::scale_fill_manual(values = c("blue","yellow","green","red","white"))+
+    xlim(0,0.75)+
+    # facet_wrap(~name)+
+    ggdark::dark_theme_classic()+
+    # theme(panel.grid.minor = element_line(colour="darkgrey", size=0.01,linetype = 3))+
+    ggtitle("Poisson deviance per observation, per model")+
+    xlab("Poisson deviance")
+  
+}
+
+
+
+
 #Encoding Function
 preproc = function(
     dt_frame,       # a dataframe

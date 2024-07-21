@@ -45,9 +45,6 @@ train_XGBoost = function(dt,
     glm_predictions <- predict.SAV_glm(glm_model, dt)
     setinfo(dtrain, "base_margin", glm_predictions)
   }
-
-  
-  
   
   # Fit final, tuned model
   fit <- xgb.train(

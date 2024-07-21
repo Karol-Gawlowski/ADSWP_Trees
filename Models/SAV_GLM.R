@@ -44,13 +44,13 @@ SAV_glm = function(data){
 }
 
 
-predict.SAV_glm = function(model,data){
+predict.SAV_glm = function(model,data,type="response"){
   
   # browser()
   
   class(model) = "glm"
   
-  as.vector(predict.glm(model,data %>% SAV_preproc,type="response"))
+  as.vector(predict.glm(model,data %>% SAV_preproc,type=type))
   
 }
 
