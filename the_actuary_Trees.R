@@ -162,20 +162,22 @@ for (i in 1:CV){
 
   # XGBoost intialised with GLM  -------------------------------------------
   
-  info_helper(n=paste0(iter," XGB init GLM"))
-  
-  models[[iter]]$XGB_init_GLM_model = train_XGBoost(dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
-                                           y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows],
-                                           vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
-                                                      y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows],
-                                            use_glm= TRUE          )
+
+    
+  models[[iter]]$XGB_init_GLM_model = train_XGBoost(glm_model = models[[iter]]$glm_model, dt = dt_list$fre_mtpl2_freq[train_rows,-c(1,2,3)],
+                                                    y = dt_list$fre_mtpl2_freq$ClaimNb[train_rows],
+                                                    vdt = list(x_val = dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],
+                                                               y_val = dt_list$fre_mtpl2_freq$ClaimNb[-train_rows]), use_glm= TRUE
   )
   
-  results[[iter]]$XGB_init_GLM = predict(models[[iter]]$XGB_init_GLM_model,
-                                xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)])))
+  dval_with_margin = xgb.DMatrix(data.matrix(dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)]))
+  val_base_margin = predict(models[[iter]]$glm_model, dt_list$fre_mtpl2_freq[-train_rows,-c(1,2,3)],type="link")
+  setinfo(dval_with_margin, "base_margin", val_base_margin)
+  
+  results[[iter]]$XGB_init_GLM = predict(models[[iter]]$XGB_init_GLM_model,dval_with_margin)
   
   losses$XGB_init_GLM[i] = poisson_deviance(y_true = results[[iter]]$actual,
-                                   y_pred = results[[iter]]$XGB_init_GLM)  
+                                            y_pred = results[[iter]]$XGB_init_GLM)  
 }
 
 sink(NULL)
