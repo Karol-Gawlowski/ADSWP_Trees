@@ -1,15 +1,15 @@
 train_XGBoost = function(dt,
                          y,
                          vdt,
-                         eta=0.1, # low eta value means model more robust to overfitting but slower to compute
-                         gamma=3, # minimum loss reduction required to make a further partition on a leaf node of the tree.
-                         max_depth=2, # maximum depth of a tree
-                         min_child_weight=1000, # minimum sum of instance weight (hessian) needed in a child
-                         subsample=0.5, # subsample ratio of the training instance
-                         colsample_bytree=1, # colsample_bytree
+                         eta = 0.3, # low eta value means model more robust to overfitting but slower to compute
+                         gamma = 0, # minimum loss reduction required to make a further partition on a leaf node of the tree.
+                         max_depth = 6 , # maximum depth of a tree
+                         min_child_weight = 1, # minimum sum of instance weight (hessian) needed in a child
+                         subsample = 1, # subsample ratio of the training instance
+                         colsample_bytree = 1, # colsample_bytree
                          objective = "count:poisson",
                          eval_metric = "poisson-nloglik",
-                         tweedie_variance_power = 1.8,
+                         tweedie_variance_power = 1.5,
                          use_glm = FALSE,
                          glm_model = NULL
                          
