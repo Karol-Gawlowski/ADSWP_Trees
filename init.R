@@ -55,233 +55,6 @@ poiss_dens = function(an = analysis,
   
 }
 
-
-
-
-#Encoding Function
-preproc = function(
-    dt_frame,       # a dataframe
-    y,              # target colname required if present in x or for target enc
-    num = NULL,     # type of encoding for numericals - normalize, standardize: c("norm","stand") 
-    cat = NULL,     # type of encoding for categoricals - one hot, target encoding, entity embedding, joint embedding: c("ohe","targ","entem","joint")
-    bypass = NULL,  # string vector of column names to bypass preprocessing
-    exclude = NULL, # columns to remove
-    verbose = T
-){
-  
-  dt_frame = dt_frame[,which(!(colnames(dt_frame) %in% exclude))]
-  
-  num_cols = setdiff(dt_frame %>% select_if(is.numeric)  %>% colnames() ,bypass)
-  cat_cols = setdiff(colnames(dt_frame),c(num_cols,bypass))
-  num_cols = num_cols[num_cols != y]
-  
-  num_enc_dt = dt_frame %>% select_at(num_cols)
-  cat_enc_dt = dt_frame %>% select_at(cat_cols)
-  
-  
-  if(is.null(num)){
-    
-    if(verbose==T){message("Numerical encoding bypassed")}
-    
-    num_encoder = function(input){NULL}
-    
-  }else if(num=="stand"){
-    
-    num_encoder = function(input){
-      
-      # ensures statistics are taken from the training dataset 
-      stats = apply(num_enc_dt,2,function(x){list(m = mean(x,na.rm = T),s = sqrt(var(x,na.rm = T)))})
-      
-      toreturn = lapply(num_cols,function(x){data.frame((pull(input,x) - stats[[x]]$m)/stats[[x]]$s) %>% set_names(x)})
-      
-      return(data.frame(toreturn))
-      
-    }
-    
-  }else if(num=="norm"){
-    
-    num_encoder = function(input){
-      
-      # ensures statistics are taken from the training dataset 
-      stats = apply(num_enc_dt,2,function(x){list(min = min(x,na.rm = T),max = max(x,na.rm = T))})
-      toreturn = lapply(num_cols,function(x){data.frame((pull(input,x) - stats[[x]]$min)/(stats[[x]]$max - stats[[x]]$min)) %>% set_names(x)})
-      
-      return(data.frame(toreturn))
-      
-    }
-    
-  }else{
-    stop("unrecognized numerical encoding")
-  }
-  
-  
-  if(is.null(cat)){
-    
-    if(verbose==T){message("Categorical encoding bypassed")}
-    
-    cat_encoder = function(input){NULL}
-    
-  }else if(cat=="ohe"){
-    
-    # we have to ensure  levels of categorical vars in test are a subset of  levels in train
-    cat_encoder = function(input){
-      
-      unq_cat = lapply(cat_cols,function(x){sort(unique(cat_enc_dt[,x]))})
-      names(unq_cat) = cat_cols
-      
-      lapply(cat_cols,function(x){
-        
-        grid = matrix(rep(unq_cat[[x]],length(input[,x])),
-                      nrow = length(input[,x]),
-                      byrow = T)
-        
-        dat = matrix(rep(input[,x],length(unq_cat[[x]])),
-                     byrow = F,
-                     ncol = length(unq_cat[[x]]),
-                     dimnames = list(row_names = NULL,col_names = paste0(x,"_",unq_cat[[x]])))
-        
-        return(data.frame((dat == grid)*1))
-        
-      }) %>% 
-        data.frame() %>% 
-        return()
-      
-    }
-    
-  }else if(cat=="targ"){
-    
-    cat_encoder = function(input){
-      
-      # create lookup
-      lkp = apply(cat_enc_dt,
-                  2,
-                  function(x){
-                    
-                    data.frame(original = x,
-                               target = dt_frame[,y]) %>% 
-                      group_by(original) %>% 
-                      mutate(enc = mean(target)) %>% 
-                      ungroup() %>% 
-                      select(-target) %>% 
-                      distinct() %>% 
-                      arrange(original) %>% 
-                      data.frame()
-                    
-                  })
-      
-      # replace entries from input according to lkp
-      lapply(cat_cols,
-             function(x){
-               
-               plyr::mapvalues(x = input %>% pull(x),
-                               from = lkp[[x]]$original,
-                               to = lkp[[x]]$enc) %>% 
-                 as.numeric() %>% 
-                 data.frame() %>% 
-                 set_names(x)
-               
-             }) %>% 
-        data.frame() %>% 
-        return()
-      
-    }
-    
-  }else if(cat=="entem"){
-    
-  }else if(cat=="joint"){
-    
-    if(verbose==T){message("Joint embedding is trained...")}
-    
-    # OHE the categoricals - reference self with categoricals = cat_cols 
-    give_ohe = preproc(dt_frame = dt_frame[,cat_cols],y = y,cat = "ohe",num = NULL,verbose = F)
-    
-    # just the target is going to be present
-    ohe_dt = give_ohe(dt_frame)[,-1]
-    
-    # train the encoder on OHE categoricals
-    no_neurons=16
-    epoch=200
-    batch_size=1000
-    learning_rate=0.001
-    
-    #Network for the autoencoder
-    Input = layer_input(shape = c(ncol(ohe_dt)))
-    
-    Output = Input %>% 
-      layer_dense(units=no_neurons, activation='linear', use_bias=FALSE,name="encoder") %>% 
-      layer_dense(units=ncol(ohe_dt), activation='softmax', use_bias=TRUE)
-    
-    model_ae=keras_model(inputs=Input,outputs=Output)
-    
-    #Optimize the cross entropy
-    model_ae %>% 
-      compile(optimizer=optimizer_nadam(lr=learning_rate),
-              loss="categorical_crossentropy")  %>% 
-      fit(ohe_dt,ohe_dt,
-          epochs=epoch,
-          batch_size=batch_size,
-          verbose=0,
-          validation_data=list(ohe_dt, ohe_dt),
-          callbacks=list(callback_early_stopping(monitor="val_loss", 
-                                                 min_delta=0,
-                                                 patience=15, 
-                                                 verbose=0, 
-                                                 mode=c("min"),
-                                                 restore_best_weights=TRUE)))
-    
-    #Recover the representation from the AE
-    joint_embedding = keras_model(inputs=model_ae$input, outputs=get_layer(model_ae, "encoder")$output)
-    
-    cat_encoder = function(input){
-      
-      joint_embedding %>% 
-        predict(give_ohe(input)) %>% 
-        return()
-      
-    }
-    
-  }else{
-    stop("unrecognized categorical encoding")
-  }
-  
-  # combine encoders  
-  encoder = function(x){
-    
-    x = x[,which(!(colnames(x) %in% exclude))]
-    
-    if(is.null(bypass)){
-      bypassed = NULL
-    }else if(length(bypass)==1){
-      bypassed = x[bypass]
-    }else{
-      bypassed = x[,bypass]
-    }
-    
-    if(!(y %in% colnames(x))){
-      target = NULL
-    }else{
-      target = x[y]
-    }
-    
-    temp_list = list(target,
-                     bypassed,
-                     num_encoder(input = x[,num_cols]),
-                     cat_encoder(input = x[,cat_cols]))
-    
-    toreturn = do.call(cbind,
-                       temp_list[!unlist(lapply(temp_list,is.null))])
-    
-    rownames(toreturn) = NULL
-    
-    return(data.matrix(toreturn))
-    
-  }
-  
-  return(encoder)
-  
-}
-
-
 # Poisson Deviance 
 custom_poisson <- function( y_true, y_pred ) {
   # Mario V. Wüthrich , Michael Merz
@@ -350,15 +123,85 @@ double_lift = function(an,
                        m2,
                        tiles=5){
   
-  
   data.frame(actual = an[[actual]],
              model1 = an[[m1]],
              model2 = an[[m2]]
              ) %>% 
-    group_by(tiles = ntiles(m1/m2,tiles)) %>% 
-    summarise(act = )
-  
-  
+    group_by(tiles = factor(ntile(model1/model2,tiles),levels=1:10)) %>% 
+    summarise(model1 = mean(model1),
+              act = mean(actual),
+              model2 = mean(model2)
+              ) %>% 
+    pivot_longer(cols = !tiles) %>% 
+    mutate(name = case_when(name=="model1" ~ m1,
+                            name=="model2" ~ m2,
+                            TRUE ~ "actual"
+                            ),
+           name = factor(name,levels = c(m1,"actual",m2))
+           ) %>% 
+    ggplot(aes(x = tiles,y=value,fill=name))+
+    geom_col(position = "dodge")+
+    scale_fill_manual(values = c("red","yellow","blue"))
   
 }
 
+
+
+
+
+one_way_chart = function(dt = analysis_wide, #wide format
+                         models = c("glm","ff_nn"), # string vector
+                         y = "actual", # actual string
+                         xvar = "DrivAge", # string
+                         expo = "Exposure",# string
+                         buckets = 10 # int for numerical
+){
+  
+  if(is.numeric(dt[[xvar]])){
+    
+    tot_ex = sum(dt[[expo]])
+    
+    dt = dt %>% 
+      arrange(!!sym(xvar)) %>% 
+      mutate(!!sym(xvar) := cut(cumsum(!!sym(expo)),breaks = seq(0,tot_ex,length.out = buckets)))
+    
+  }else if(!is.character(dt[[xvar]])){
+    stop("x format wrong")
+  }
+  
+  m = dt[c(xvar,y,models)] %>% 
+    group_by(!!sym(xvar)) %>% 
+    summarise_all(.funs = mean)
+  
+  e = dt[c(xvar,expo)] %>% 
+    group_by(!!sym(xvar)) %>% 
+    summarise(ex = sum(!!sym(expo)))
+  
+  prop = max(m[models])/max(e$ex)
+  
+  # IF IS STRING THEN ORDER BY EXPO SIZE
+  
+  # add secondary axis
+  # add tilt if numeric
+  
+  ggplot()+
+    geom_point(data = m %>% 
+                 pivot_longer(cols = c(models,y),names_to = "model"),
+               aes_string(x = xvar,y = "value",color = "model",shape = "model"),
+               alpha = 0.8,
+               size = 2)+
+    geom_col(data = e %>% 
+               mutate(ex = ex*prop*0.5),mapping = aes_string(x = xvar,y="ex"),
+             alpha = 0.3) +
+    # ggdark::dark_theme_classic()+
+    # theme(panel.grid.minor = element_line(colour="darkgrey", size=0.01,linetype = 3))+
+    theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))+ 
+    scale_y_continuous(
+      sec.axis = sec_axis(~ . / prop, name = "Exposure",labels = scales::comma)
+    )+
+    ggtitle(paste0("One way - ",xvar))+
+    ylab("Freq")+
+    xlab(xvar) %>% 
+    return()
+  
+}

@@ -69,10 +69,11 @@ train_XGBoost = function(dt,
   
   # Initialize with GLM predictions if use_glm is TRUE
   if (use_glm && !is.null(glm_model)) {
+    
     glm_predictions_train <- predict(glm_model, dt,type="link")
-    setinfo(dtrain, "base_margin", as.matrix(glm_predictions_train))
+    setinfo(dtrain, "base_margin", unname(glm_predictions_train))
     glm_predictions_val <- predict(glm_model, vdt$x_val,type="link")
-    setinfo(vtrain, "base_margin", as.matrix(glm_predictions_val))
+    setinfo(vtrain, "base_margin", unname(glm_predictions_val))
   }
   
   
@@ -104,9 +105,9 @@ predict.base_margin_xgb = function(model,dt){
 
   dval_with_margin = xgb.DMatrix(data.matrix(dt))
   val_base_margin = predict(model$glm_model, dt,type="link")
-  setinfo(dval_with_margin, "base_margin", val_base_margin)
+  setinfo(dval_with_margin, "base_margin", unname(val_base_margin))
   
-  return(predict(model$xgb,dval_with_margin,dval_with_margin))
+  return(predict(model$xgb,dval_with_margin))
   
 }
 
