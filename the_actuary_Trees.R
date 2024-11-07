@@ -187,7 +187,7 @@ sink(NULL)
 #              results = results,
 #              models = models),file = "The_Actuary_trees_v6.rds")
 
-# temp = readRDS("Results/The_Actuary_trees_wo_models_v8.rds")
+# temp = readRDS("The_Actuary_trees_wo_models_v13_VALIDATION.rds")
 # losses = temp$losses
 # results = temp$results
 
@@ -210,7 +210,7 @@ bind_rows(results,.id = "id") %>%
   mutate_if(is.numeric,scales::percent,0.1)
 
 analysis = bind_rows(results,.id = "id")  %>% 
-  select(id,actual,glm,XGB, homog, train_GLM_w_XGB, GLM_XGB,multipl_GLM_XGB) %>% 
+  # select(id,actual,glm,XGB, homog, train_GLM_w_XGB, GLM_XGB,multipl_GLM_XGB) %>% 
   pivot_longer(cols = glm:multipl_GLM_XGB) %>% 
   mutate(actual = actual,
          value = value,
